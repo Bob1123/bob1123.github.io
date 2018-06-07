@@ -1,0 +1,261 @@
+<html>
+<head>
+<title>Sketchpad</title>
+
+<script type="text/javascript">
+    // Variables for referencing the canvas and 2dcanvas context
+    var canvas,ctx;
+
+    // Variables to keep track of the mouse position and left-button status 
+    var mouseX,mouseY,mouseDown=0;
+
+    // Current dot on click
+    var currDot;
+
+    // Array of dots
+    var allLines = [];
+
+    var chessboard;
+
+    class board {
+        constructor(x, y, width, size) {
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.size = size;
+            this.dx = width/size;
+            this.dy = width/size;
+        }
+
+        draw(ctx) {
+            var i,j;
+            for (i=0; i<this.size; i++) {
+                for(j=0; j<this.size; j++) {
+                    ctx.rect(this.x+i*this.dx, this.y+j*this.dy, this.dx, this.dy);
+                    ctx.stroke();
+                    for (let line of allLines) {
+                        if(line.intersects(this.x+i*this.dx, this.y+j*this.dy, this.dx, this.dy)) {
+                            ctx.fillStyle = "#FF000044";
+                            ctx.fillRect(this.x+i*this.dx, this.y+j*this.dy, this.dx, this.dy);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    class dot {
+        constructor(x, y, r, color) {
+            this.x = x;
+            this.y = y;
+            this.r = r;
+            this.color = color;
+        }
+
+        draw(ctx) {
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.r, 0, Math.PI*2, true);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        contains(x, y) {
+            return (x - this.x)*(x-this.x) + (y - this.y)*(y-this.y) <= this.r*this.r;
+        }
+    }
+
+    class line {
+        constructor(dot1, dot2, color) {
+            this.dot1 = dot1;
+            this.dot2 = dot2;
+            this.color = color;
+        }
+
+        draw(ctx) {
+            ctx.beginPath();
+            ctx.moveTo(this.dot1.x, this.dot1.y);
+            ctx.lineTo(this.dot2.x, this.dot2.y);
+            ctx.stroke();
+            ctx.closePath();
+            
+            this.dot1.draw(ctx);
+            this.dot2.draw(ctx);
+        }
+
+        intersects(x, y, dx, dy) {
+            if (this.dot2.x != this.dot1.x) {
+                var yleft = (this.dot2.y-this.dot1.y)/(this.dot2.x-this.dot1.x)*(x-this.dot1.x)+this.dot1.y;
+                if (yleft < y + dy && yleft > y) {
+                    return true;
+                }
+            }
+            if (this.dot2.x != this.dot1.x) {
+                var yright = (this.dot2.y-this.dot1.y)/(this.dot2.x-this.dot1.x)*(x+dx-this.dot1.x)+this.dot1.y;
+                if (yright < y + dy && yright > y) {
+                    return true;
+                }
+            }
+            if (this.dot2.y != this.dot1.y) {
+                var xtop = (this.dot2.x-this.dot1.x)/(this.dot2.y-this.dot1.y)*(y-this.dot1.y)+this.dot1.x;
+                if (xtop < x + dx && xtop > x) {
+                    return true;
+                }
+            }
+            if (this.dot2.y != this.dot1.y) {
+                var xbottom = (this.dot2.x-this.dot1.x)/(this.dot2.y-this.dot1.y)*(y+dy-this.dot1.y)+this.dot1.x;
+                if (xbottom < x + dx && xbottom > x) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    // Clear the canvas context using the canvas width and height
+    function clearCanvas(canvas,ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function drawAll(canvas, ctx) {
+        clearCanvas(canvas, ctx)
+        chessboard.draw(ctx);
+        for (let line of allLines) {
+            line.draw(ctx);
+        }
+    }
+
+    // Keep track of the mouse button being pressed and draw a dot at current location
+    function sketchpad_mouseDown() {
+        mouseDown=1;
+        for (let line of allLines) {
+            if(line.dot1.contains(mouseX, mouseY)) {
+                currDot = line.dot1;
+                break;
+            } else if(line.dot2.contains(mouseX, mouseY)) {
+                currDot = line.dot2;
+                break;
+            }
+        }
+    }
+
+    // Keep track of the mouse button being released
+    function sketchpad_mouseUp() {
+        mouseDown=0;
+        if (currDot != null) {
+            currDot.draw(ctx);
+        }
+        currDot = null;
+        // drawAll(canvas,ctx);
+    }
+
+    // Keep track of the mouse position and draw a dot if mouse button is currently pressed
+    function sketchpad_mouseMove(e) { 
+        // Update the mouse co-ordinates when moved
+        getMousePos(e);
+
+        // Draw a dot if the mouse button is currently being pressed
+        if (mouseDown==1 && currDot != null) {
+            currDot.x = mouseX;
+            currDot.y = mouseY;
+            drawAll(canvas,ctx);
+        }
+    }
+
+    // Get the current mouse position relative to the top-left of the canvas
+    function getMousePos(e) {
+        if (!e)
+            var e = event;
+
+        if (e.offsetX) {
+            mouseX = e.offsetX;
+            mouseY = e.offsetY;
+        }
+        else if (e.layerX) {
+            mouseX = e.layerX;
+            mouseY = e.layerY;
+        }
+     }
+
+    function start() {
+        allLines = [];
+        var i;
+        for (i=0; i<document.getElementById("lines").value; i++) {
+            allLines.push(new line(new dot(10, 60*i, 10, "#000000"), new dot(50, 60*i, 10, "#000000"), "#000000"));
+        }
+
+        chessboard = new board(100, 100, 500, document.getElementById("size").value);
+        drawAll(canvas,ctx);
+    }
+
+
+    // Set-up the canvas and add our event handlers after the page has loaded
+    function init() {
+        // Get the specific canvas element from the HTML document
+        canvas = document.getElementById('sketchpad');
+
+        // If the browser supports the canvas tag, get the 2d drawing context for this canvas
+        if (canvas.getContext)
+            ctx = canvas.getContext('2d');
+
+        // Check that we have a valid context to draw on/with before adding event handlers
+        if (ctx) {
+            canvas.addEventListener('mousedown', sketchpad_mouseDown, false);
+            canvas.addEventListener('mousemove', sketchpad_mouseMove, false);
+            window.addEventListener('mouseup', sketchpad_mouseUp, false);
+        }
+
+
+    }
+</script>
+
+<style>
+/* Some CSS styling */
+#sketchpadapp {
+    /* Prevent nearby text being highlighted when accidentally dragging mouse outside confines of the canvas */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+.leftside {
+    float:left;
+    width:220px;
+    height:285px;
+    background-color:#def;
+    padding:10px;
+    border-radius:4px;
+}
+.rightside {
+    float:left;
+    margin-left:10px;
+}
+#sketchpad {
+    float:left;
+    border:2px solid #888;
+    border-radius:4px;
+    position:relative; /* Necessary for correct mouse co-ords in Firefox */
+}
+</style>
+</head>
+
+<body onload="init()">
+    <div id="sketchpadapp">
+        <div class="leftside">
+             How many lines do you need to cover all the squares of an n by n chess board? </br>
+
+             Size: <input type="number" id="size" value="4"> </br>
+
+             Lines: <input type="number" id="lines" value="3"> </br>
+
+            <input type="submit" value="Start" onclick="start();">
+        </div>
+        <div class="rightside">
+            <canvas id="sketchpad" height="700" width="700">
+            </canvas>
+        </div>
+    </div>
+</body>
+</html>
