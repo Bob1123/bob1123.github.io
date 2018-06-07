@@ -180,11 +180,12 @@
     function start() {
         allLines = [];
         var i;
+        var s = document.getElementById("size").value;
         for (i=0; i<document.getElementById("lines").value; i++) {
-            allLines.push(new line(new dot(10, 60*i, 10, "#000000"), new dot(50, 60*i, 10, "#000000"), "#000000"));
+            allLines.push(new line(new dot(50, 100 + 500/s*(i+.5), 10, "#000000"), new dot(650, 100 + 500/s*(i+.5), 10, "#000000"), "#000000"));
         }
 
-        chessboard = new board(100, 100, 500, document.getElementById("size").value);
+        chessboard = new board(100, 100, 500, s);
         drawAll(canvas,ctx);
     }
 
