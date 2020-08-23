@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+
+
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<style>
+canvas {
+    border:1px solid #d3d3d3;
+    background-color: #f1f1f1;
+}
+</style>
+</head>
+
+
+<body onload="startGame()">
+<script>
+
+var flagColor = "#bb0000";
+var coveredColor = "#333333";
+
+canvas = document.createElement("canvas");
+canvas.width = window.innerWidth-18;
+canvas.height = canvas.width/30*20;
+context = canvas.getContext("2d");
+document.body.insertBefore(canvas, document.body.childNodes[0]);
+canvas.addEventListener("click", clickHandler, false);
+
+function constant_array(width, height, constant)
+{
+    var array = [];
+    for(var row = 0; row < height; row++)
+    {
+        array.push(new Array(width).fill(constant));
+    }
+    return array;
+}
+
+function shuffleArray(array) {
+    for (var i = array.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var temp = array[i];
+        array[i] = array[j];
+        array[j] = temp;
+    }
+}
+
+class Board
+{
+    constructor(width, height, numMines)
+    {
+        canvas.height = canvas.width/width*height;
+        context.font = ((120/width) + "vw Arial");
+        console.log(context.font)
+
+        this.width = width;
+        this.height = height;
+        this.field = constant_array(this.width, this.height, 0);
+        this.status = constant_array(this.width, this.height, "covered");
+        this.numMines = numMines
+        this.populated = false;
+        this.flag = false;
+    }
+
+    populate(rowEx, colEx)
+    {
+        var array = new Array(this.width*this.height);
+        for(var i = 0; i < array.length; i++)
+        {
+            array[i] = i;
+        }
+        shuffleArray(array);
+        var mines = this.numMines;
+        var i = 0;
+        var x,y;
+        while(mines>0){
+            x = Math.floor(array[i]/this.width);
+            y = array[i]%this.width;
+            if(x != rowEx && y != colEx){
+                this.field[x][y] = "M";
+                mines--;
+            }
+            i++;
+        }
+
+        for(var row=0; row<this.height; row++) {
+            for(var col=0; col<this.width; col++) {
+                if(this.field[row][col] != "M") {
+                    var countMines = 0;
+                    var neigh = this.neighbors(row,col);
+                    for(var i=0; i<neigh.length; i++) {
+                        if(this.field[neigh[i][0]][neigh[i][1]] == "M") {
+                            countMines++;
+                        }
+                    }
+                    this.field[row][col] = countMines;
+                }
+            }
+        }
+        this.populated = true;
+    }
+
+    neighbors(row,col)
+    {
+        var neigh = [];
+        if(row>0 && col>0) {
+            neigh.push([row-1,col-1]);
+        }
+        if(row>0) {
+            neigh.push([row-1,col]);
+        }
+        if(row>0 && col<this.width-1) {
+            neigh.push([row-1,col+1]);
+        }
+        if(col>0) {
+            neigh.push([row,col-1]);
+        }
+        if(col<this.width-1) {
+            neigh.push([row,col+1]);
+        }
+        if(row<this.height-1 && col>0) {
+            neigh.push([row+1,col-1]);
+        }
+        if(row<this.height-1) {
+            neigh.push([row+1,col]);
+        }
+        if(row<this.height-1 && col<this.width-1) {
+            neigh.push([row+1,col+1]);
+        }
+        return neigh
+    }
+
+    draw()
+    {
+        context.clearRect(0,0,canvas.width,canvas.height);
+        var xunit = canvas.width/this.width;
+        var yunit = canvas.height/this.height;
+        var border = 2;
+        for(var row = 0; row < this.height; row++)
+        {
+            for(var col = 0; col < this.width; col++)
+            {
+                if(this.status[row][col] == "covered") {
+                    context.fillStyle = coveredColor;
+                    context.fillRect(col*xunit+border, row*yunit+border, xunit-border, yunit-border);
+                } else if(this.status[row][col] == "flagged") {
+                    context.fillStyle = flagColor;
+                    context.fillRect(col*xunit+border, row*yunit+border, xunit-border, yunit-border);
+                } else {
+                    context.fillStyle = coveredColor;
+                    context.fillText(this.field[row][col], (col+.2)*xunit, (row+1)*yunit);
+                }
+
+            }
+        }
+    }
+
+    death()
+    {
+        return true
+    }
+
+    ruleZero()
+    {
+        var didAnything = false;
+        for(var row = 0; row < this.height; row++)
+        {
+            for(var col = 0; col < this.width; col++)
+            {
+                if(this.status[row][col] == "uncovered" && this.field[row][col] == 0) {
+                    var neigh = this.neighbors(row,col);
+                    for(var i=0; i<neigh.length; i++) {
+                        if(this.status[neigh[i][0]][neigh[i][1]] == "covered") {
+                            didAnything = true;
+                            this.status[neigh[i][0]][neigh[i][1]] = "uncovered";
+                        }
+                    }
+                }
+            }
+        }
+        return didAnything;
+    }
+
+    ruleOne()
+    {
+        var didAnything = false;
+        for(var row = 0; row < this.height; row++)
+        {
+            for(var col = 0; col < this.width; col++)
+            {
+                if(this.status[row][col] == "uncovered" && this.field[row][col] > 0) {
+                    var neigh = this.neighbors(row,col);
+                    var numCoveredNeigh = 0;
+                    for(var i=0; i<neigh.length; i++) {
+                        if(this.status[neigh[i][0]][neigh[i][1]] == "covered" || this.status[neigh[i][0]][neigh[i][1]] == "flagged") {
+                            numCoveredNeigh++;
+                        }
+                    }
+                    if(this.field[row][col] == numCoveredNeigh) {
+                        for(var i=0; i<neigh.length; i++) {
+                            if(this.status[neigh[i][0]][neigh[i][1]] == "covered") {
+                                this.status[neigh[i][0]][neigh[i][1]] = "flagged"
+                                didAnything = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return didAnything
+    }
+
+    ruleTwo()
+    {
+        var didAnything = false;
+        for(var row = 0; row < this.height; row++)
+        {
+            for(var col = 0; col < this.width; col++)
+            {
+                if(this.status[row][col] == "uncovered" && this.field[row][col] > 0) {
+                    var neigh = this.neighbors(row,col);
+                    var numFlagged = 0;
+                    for(var i=0; i<neigh.length; i++) {
+                        if(this.status[neigh[i][0]][neigh[i][1]] == "flagged") {
+                            numFlagged++;
+                        }
+                    }
+                    if(this.field[row][col] == numFlagged) {
+                        for(var i=0; i<neigh.length; i++) {
+                            if(this.status[neigh[i][0]][neigh[i][1]] == "covered") {
+                                this.status[neigh[i][0]][neigh[i][1]] = "uncovered"
+                                didAnything = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return didAnything
+    }
+
+    numMinesFlagged()
+    {
+        var counter = 0;
+        for(var row = 0; row<this.height; row++)
+        {
+            for(var col = 0; col<this.width; col++)
+            {
+                if(this.status[row][col] == "flagged" && this.field[row][col] == "M") {
+                    counter++;
+                }
+            }
+        }
+        return counter;
+    }
+}
+
+/*    // Add the mouseListener
+      canvas.addEventListener("click", clickHandler, false);
+
+    // Function for getting the position of a click
+    function getMousePos(canvas, evt) {
+          var rect = canvas.getBoundingClientRect();
+          return {
+            x: Math.round(evt.clientX - rect.left),
+            y: Math.round(evt.clientY - rect.top)
+          };
+      }
+      function clickHandler(evt) {
+    //console.log("Click!");
+    // Get coordinates in graph-space
+    var coord = getMousePos(canvas, evt);
+    if(coord.y >= canvas.height*bottomMargin && testGraph.prev != null) {
+        testGraph = testGraph.prev;
+        testGraph.undo();
+    }
+    var mousePos = scaleBack(canvas.width, canvas.height*bottomMargin, testGraph, coord.x, coord.y);
+    for (let node of testGraph.nodes) {
+        // For each node, see if the click was in it, and if the colors agree,
+        // and if the time is okay to click.
+        if(!testGraph.stillProcessing() && node.contains(mousePos.x, mousePos.y) && (node.player.ID == testGraph.currPlayer.ID || node.player == empty)) {
+            testGraph = testGraph.duplicate();
+            node = testGraph.nodes[testGraph.prev.nodes.indexOf(node)];
+            console.log(node.count + " " + node.neighbors.length + " " + node.neighbors.length);
+            node.count = node.count + 1;
+            if(node.player.ID != testGraph.currPlayer.ID) {
+                if(node.player != empty) {
+                    node.player.occupancy--;
+                }
+                testGraph.currPlayer.occupancy++;
+                node.player = testGraph.currPlayer;
+            }
+            testGraph.toProcess = [];
+            testGraph.toProcess.push(node);
+
+            console.log(testGraph.toProcess);
+        }
+    }
+}*/
+
+var GameBoard;
+
+function startGame() {
+    var w = parseInt(document.getElementById("width").value);
+    var h = parseInt(document.getElementById("height").value);
+    var nM = parseInt(document.getElementById("numMines").value);
+    GameBoard = new Board(w, h, nM);
+    //GameBoard = new Board(30,20,100);
+    GameBoard.draw();
+}
+
+function clickHandler(evt)
+{
+    var rect = canvas.getBoundingClientRect();
+    var row = Math.floor((evt.clientY - rect.top)/canvas.height*GameBoard.height);
+    var col = Math.floor((evt.clientX - rect.left)/canvas.width*GameBoard.width);
+    if(evt.shiftKey) {
+        GameBoard.status[row][col] = "flagged";
+    } else if(GameBoard.status[row][col] != "flagged") {
+        if(GameBoard.field[row][col] == "M") {
+            alert("YOU DIED!");
+            GameBoard.death();
+        }
+        GameBoard.status[row][col] = "uncovered";
+    }
+    if(!GameBoard.populated) {
+        GameBoard.populate(row,col);
+    }
+    var count = 0;
+    while((GameBoard.ruleZero() || GameBoard.ruleOne() || GameBoard.ruleTwo()) && count < 1000) {
+        console.log("rule!");
+        count++;
+    }
+    document.getElementById("minesleft").innerHTML = "Mines Left: " + (GameBoard.numMines - GameBoard.numMinesFlagged());
+    GameBoard.draw();
+}
+
+
+
+</script>
+
+
+
+
+
+
+
+<br>
+<p id="minesleft">Mines Left: </p>
+<p>Width: <input type="number" id="width" value="30"></p>
+<p>Height: <input type="number" id="height" value="20"></p>
+<p>Number of Mines: <input type="number" id="numMines" value="100"> </p>
+<p><input type="submit" value="New Game" onclick="startGame();"></p>
+<p>How this works:</p>
+<p>Resize your window, then refresh the page. Now you may enter the width, height, and number of mines you want to play with, and hit New Game. Hold shift to flag a square as having a mine.</p>
+<p>To make minesweeper less tedious, the original game uncovers every square adjacent to a zero automatically. We call this Rule 0, and take it two steps further. Rule 1 is uncovering every non-flagged square adjacent to an uncovered square whose number equals the number of flags adjacent to it. In this way, Rule 1 is a generalization of Rule 0, and both uncover squares. In constrast, Rule 2 flags squares. For every uncovered square whose number equals the number of covered squares adjacent to it, all those covered neighbors are flagged. These rules are iterated until no new deductions happen. At this point, it is your turn to use more advanced logic to progress.</p>
+
+
+</body>
+</html>
